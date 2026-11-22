@@ -6,6 +6,7 @@ import { createDocument } from '@/shared/document'
 import { BonusBanner, ChainMeter } from '@/features/bonus'
 import { ControlDeck, TiltLamp } from '@/features/flippers'
 import { ChallengeBoard, HistoryList, readSave, ResultCard } from '@/features/records'
+import { RescuePanel } from '@/features/rescue'
 import { EventTicker, ScoreHud } from '@/features/scoring'
 import { MechanismPanel, mountFresh, TableView } from '@/features/table'
 
@@ -55,6 +56,7 @@ function onPlunger(down: boolean): void {
         </div>
         <aside class="side">
           <TiltLamp :warnings="doc.nudge.warnings" :tilted="doc.nudge.tilted" />
+          <RescuePanel :doc="doc" />
           <BonusBanner :doc="doc" />
           <ResultCard :doc="doc" />
           <ChainMeter :doc="doc" />

@@ -3,6 +3,7 @@ import type { PinballDocument } from '@/shared/document'
 import { absorbZones, tickBonus } from '@/features/bonus'
 import { advanceControls } from '@/features/flippers'
 import { persist, syncRecords } from '@/features/records'
+import { resolveDrain, startSaver, tickRescue } from '@/features/rescue'
 import { simulateBall } from '@/features/scoring'
 import { anchors, consumeContacts, publishGates, sampleRamp, sampleScoop, stickPlunger, syncTable } from '@/features/table'
 import { applyDrain, restartGame, togglePause } from '@/app/cabinet-actions'
@@ -26,13 +27,24 @@ export function runFrame(doc: PinballDocument, input: FrameInput, dtMs: number):
 
   doc.run.playMs += dtMs
   tickBonus(doc, dtMs)
+  // 球保与宽限只在游玩帧递减；暂停帧已在上方返回，倒计时因此冻结
+  tickRescue(doc, dtMs)
   const solids = syncTable(doc, dtMs)
   if (doc.ball.held !== 'plunger') {
     const events = simulateBall(doc, solids, dtMs, { ramp: sampleRamp, scoop: sampleScoop })
+    if (doc.signals.scoopReleased) {
+      doc.signals.scoopReleased = false
+      startSaver(doc)
+    }
     consumeContacts(doc, events)
     absorbZones(doc, events)
     publishGates(doc)
-    if (doc.signals.drain) applyDrain(doc)
+    if (doc.signals.drain) {
+      // 漏球裁决：救回/踢回会清掉信号并保留球数；否则才实扣
+      const rescued = resolveDrain(doc)
+      if (rescued) doc.signals.drain = false
+      else applyDrain(doc)
+    }
   }
   syncRecords(doc)
 }

@@ -54,6 +54,8 @@ function parseEntry(value: unknown): HistoryEntry | null {
     bonusEntries: typeof raw.bonusEntries === 'number' ? raw.bonusEntries : 0,
     bankClears: typeof raw.bankClears === 'number' ? raw.bankClears : 0,
     cleanFinish: raw.cleanFinish === true,
+    saves: typeof raw.saves === 'number' ? raw.saves : 0,
+    kickbacks: typeof raw.kickbacks === 'number' ? raw.kickbacks : 0,
   }
 }
 
@@ -101,6 +103,9 @@ export function persist(doc: PinballDocument): void {
 
 export function commitSession(doc: PinballDocument, abandoned: boolean): void {
   if (!doc.run.launched || doc.run.committed) return
+  // 最后一颗球的救援数尚未经 applyDrain 累计，这里并入整局统计
+  doc.live.totalSaves += doc.rescue.ballSaves
+  doc.live.totalKickbacks += doc.rescue.ballKickbacks.left + doc.rescue.ballKickbacks.right
   const clean = !abandoned && doc.phase === 'gameover' && !doc.live.tilted
   if (clean) doc.career.cleanFinish = true
   if (doc.score > doc.bestScore) doc.bestScore = doc.score
@@ -114,6 +119,8 @@ export function commitSession(doc: PinballDocument, abandoned: boolean): void {
     bonusEntries: doc.live.bonusEntries,
     bankClears: doc.live.bankClears,
     cleanFinish: clean,
+    saves: doc.live.totalSaves,
+    kickbacks: doc.live.totalKickbacks,
   })
   if (doc.history.length > 20) doc.history.length = 20
   doc.run.committed = true

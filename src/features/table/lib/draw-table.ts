@@ -205,6 +205,15 @@ function ballOf(ctx: CanvasRenderingContext2D, doc: PinballDocument): void {
     ctx.arc(point.x, point.y, doc.ball.radius * 0.7, 0, Math.PI * 2)
     ctx.fill()
   }
+  // 球保生效：球带青色光环
+  if (doc.rescue.saverActive) {
+    const pulse = 2 + Math.sin(performance.now() / 120) * 1.4
+    ctx.beginPath()
+    ctx.strokeStyle = 'rgba(55,230,176,0.9)'
+    ctx.lineWidth = 2
+    ctx.arc(doc.ball.x, doc.ball.y, doc.ball.radius + 4 + pulse, 0, Math.PI * 2)
+    ctx.stroke()
+  }
   ctx.beginPath()
   ctx.fillStyle = '#fff6e8'
   ctx.arc(doc.ball.x, doc.ball.y, doc.ball.radius, 0, Math.PI * 2)
@@ -213,6 +222,25 @@ function ballOf(ctx: CanvasRenderingContext2D, doc: PinballDocument): void {
   ctx.fillStyle = '#c81d3a'
   ctx.arc(doc.ball.x - 2, doc.ball.y - 2, 2.4, 0, Math.PI * 2)
   ctx.fill()
+}
+
+// 左右出球道踢回指示灯：亮=本球仍可踢回，灭=已用，倾斜时变红
+function kickbackLamps(ctx: CanvasRenderingContext2D, doc: PinballDocument): void {
+  const marks: { side: 'left' | 'right'; x: number }[] = [
+    { side: 'left', x: 66 },
+    { side: 'right', x: 322 },
+  ]
+  for (const mark of marks) {
+    const available = doc.rescue.kickback[mark.side] > 0
+    ctx.beginPath()
+    ctx.arc(mark.x, 600, 7, 0, Math.PI * 2)
+    if (doc.nudge.tilted) ctx.fillStyle = '#ff5470'
+    else ctx.fillStyle = available ? '#ffb454' : 'rgba(80,60,40,0.8)'
+    ctx.fill()
+    ctx.strokeStyle = '#24140f'
+    ctx.lineWidth = 2
+    ctx.stroke()
+  }
 }
 
 function bonusWash(ctx: CanvasRenderingContext2D, doc: PinballDocument): void {
@@ -238,6 +266,7 @@ export function paintTable(ctx: CanvasRenderingContext2D, doc: PinballDocument, 
   holeOf(ctx, doc)
   spinnerOf(ctx, doc)
   bumpersOf(ctx, doc)
+  kickbackLamps(ctx, doc)
   plungerOf(ctx, doc)
   flippersOf(ctx, doc)
   ballOf(ctx, doc)

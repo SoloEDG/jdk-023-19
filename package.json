@@ -7,6 +7,8 @@
     "dev": "vite",
     "typecheck": "vue-tsc --noEmit -p tsconfig.json",
     "build": "vue-tsc --noEmit -p tsconfig.json && vite build",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "preview": "vite preview --host 0.0.0.0 --port 4173"
   },
   "dependencies": {
@@ -20,6 +22,7 @@
     "@vue/compiler-sfc": "^3.5.13",
     "typescript": "^5.7.2",
     "vite": "^6.0.11",
+    "vitest": "^5.1.1",
     "vue-tsc": "^2.2.0"
   }
 }

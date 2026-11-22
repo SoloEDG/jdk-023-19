@@ -1,4 +1,5 @@
 import { BALL_RADIUS } from '@/shared/ids'
+import { createRescueState } from '@/features/rescue/model/rescue-config'
 
 export type Phase = 'ready' | 'playing' | 'paused' | 'gameover'
 
@@ -26,6 +27,7 @@ export interface BallState {
   rideMs: number
   rideDur: number
   idleMs: number
+  launchedOnce: boolean
 }
 
 export interface FlipperState {
@@ -73,6 +75,8 @@ export interface LiveGoals {
   tilted: boolean
   bankPending: boolean
   bankResetMs: number
+  totalSaves: number
+  totalKickbacks: number
 }
 
 export interface CareerState {
@@ -80,6 +84,35 @@ export interface CareerState {
   bonusOnce: boolean
   bankTwice: boolean
   cleanFinish: boolean
+}
+
+export type DrainRoute = 'left' | 'right' | 'center'
+
+export type RescueOutcome = 'saved' | 'kickback'
+
+export interface RescueEvent {
+  uid: number
+  outcome: RescueOutcome
+  route: DrainRoute
+  text: string
+}
+
+export interface RescueState {
+  // 球保（ball saver）：球离开发射槽后的限时保护，暂停时倒计时冻结
+  saverActive: boolean
+  saverRemainMs: number
+  // 左右出球道踢回：每颗球各一次，换新球时重新给满
+  kickback: { left: number; right: number }
+  // 球落入出球道时锁定的通道，漏球裁决以此为准，避免反弹改变坐标后误判
+  laneRoute: DrainRoute | null
+  // 救回/踢回后的重新入台宽限（毫秒），期间不再判漏球，保证一次落下只裁决一次
+  graceMs: number
+  // 本颗球是否被救过（只记录，不计分、不推进破万）
+  ballSaved: boolean
+  ballSaves: number
+  ballKickbacks: { left: number; right: number }
+  events: RescueEvent[]
+  eventSeq: number
 }
 
 export interface HistoryEntry {
@@ -92,6 +125,8 @@ export interface HistoryEntry {
   bonusEntries: number
   bankClears: number
   cleanFinish: boolean
+  saves: number
+  kickbacks: number
 }
 
 export interface FeedItem {
@@ -123,6 +158,7 @@ export interface PinballDocument {
   flippers: { left: FlipperState; right: FlipperState }
   plunger: PlungerState
   nudge: NudgeState
+  rescue: RescueState
   mechanisms: MechanismState[]
   gates: { rampOpen: boolean }
   chain: ChainState
@@ -133,7 +169,7 @@ export interface PinballDocument {
   feedSeq: number
   note: NoteState
   run: RunMeta
-  signals: { drain: boolean }
+  signals: { drain: boolean; scoopReleased: boolean }
 }
 
 export function defaultCareer(): CareerState {
@@ -158,6 +194,7 @@ export function createDocument(): PinballDocument {
       rideMs: 0,
       rideDur: 1,
       idleMs: 0,
+      launchedOnce: false,
     },
     flippers: {
       left: { angle: 0.62, omega: 0, held: false },
@@ -165,17 +202,18 @@ export function createDocument(): PinballDocument {
     },
     plunger: { power: 0, charging: false },
     nudge: { warnings: 0, tilted: false, flashMs: 0, flashDir: 0 },
+    rescue: createRescueState(),
     mechanisms: [],
     gates: { rampOpen: false },
     chain: { count: 0, lastZone: null, remainMs: 0, bonusMs: 0, multiplier: 1 },
-    live: { bonusEntries: 0, bankClears: 0, tilted: false, bankPending: false, bankResetMs: 0 },
+    live: { bonusEntries: 0, bankClears: 0, tilted: false, bankPending: false, bankResetMs: 0, totalSaves: 0, totalKickbacks: 0 },
     career: defaultCareer(),
     history: [],
     feed: [],
     feedSeq: 0,
     note: { text: '', ms: 0 },
     run: { launched: false, committed: false, playMs: 0, storedScore: 0, storageWarned: false },
-    signals: { drain: false },
+    signals: { drain: false, scoopReleased: false },
   }
 }
 

@@ -4,6 +4,7 @@ import { speedOf } from '@/shared/geometry'
 import { BodyId } from '@/shared/ids'
 import type { Solid } from '@/shared/solids'
 import { resolveBall } from '@/features/scoring/lib/collide'
+import { trackOutlane } from '@/features/rescue'
 
 const MAX_SPEED = 1750
 const SCOOP_MS = 560
@@ -40,7 +41,7 @@ function beginRide(doc: PinballDocument, kind: 'ramp' | 'scoop', duration: numbe
   doc.ball.vy = 0
 }
 
-function stepRide(doc: PinballDocument, dtMs: number, sample: (progress: number) => RideSample): ContactEvent[] {
+function stepRide(doc: PinballDocument, dtMs: number, sample: (progress: number) => RideSample, kind: 'ramp' | 'scoop'): ContactEvent[] {
   doc.ball.rideMs += dtMs
   const progress = doc.ball.rideMs / doc.ball.rideDur
   const point = sample(Math.min(1, progress))
@@ -51,6 +52,8 @@ function stepRide(doc: PinballDocument, dtMs: number, sample: (progress: number)
   doc.ball.vx = point.vx
   doc.ball.vy = point.vy
   doc.ball.rideMs = 0
+  // 发射槽乘坐结束即代表球真正离槽进入台面，交给游戏循环启动球保
+  if (kind === 'scoop') doc.signals.scoopReleased = true
   return []
 }
 
@@ -96,7 +99,17 @@ function markDrainOrSeat(doc: PinballDocument): void {
     return
   }
   if (ball.held !== 'none') return
+  // 重新入台宽限内不判漏球，避免救回/踢回的重生过程被当成第二次落下
+  if (doc.rescue.graceMs > 0) return
   if (ball.x > 358 && ball.y > 600 && ball.vy >= 0) {
+    // 球离槽后又重新落回发射槽（力道不足没打过槽顶）：复位离槽标记，
+    // 这样下次真正离槽时球保仍会启动；尚未离槽时（launchedOnce=false）无需处理。
+    if (ball.launchedOnce) {
+      ball.launchedOnce = false
+      doc.rescue.saverActive = false
+      doc.rescue.saverRemainMs = 0
+      doc.rescue.laneRoute = null
+    }
     ball.held = 'plunger'
     ball.vx = 0
     ball.vy = 0
@@ -113,8 +126,8 @@ function markDrainOrSeat(doc: PinballDocument): void {
 
 export function advanceBall(doc: PinballDocument, solids: Solid[], dtMs: number, rides: RideFns): ContactEvent[] {
   if (doc.ball.held === 'hole') return stepHole(doc, dtMs)
-  if (doc.ball.held === 'ramp') return stepRide(doc, dtMs, rides.ramp)
-  if (doc.ball.held === 'scoop') return stepRide(doc, dtMs, rides.scoop)
+  if (doc.ball.held === 'ramp') return stepRide(doc, dtMs, rides.ramp, 'ramp')
+  if (doc.ball.held === 'scoop') return stepRide(doc, dtMs, rides.scoop, 'scoop')
   if (doc.ball.held === 'plunger') return []
 
   const dt = Math.max(0.001, dtMs / 1000)
@@ -132,6 +145,7 @@ export function advanceBall(doc: PinballDocument, solids: Solid[], dtMs: number,
     if (doc.ball.held !== 'none') break
   }
   capSpeed(doc, dtMs)
+  trackOutlane(doc)
   markDrainOrSeat(doc)
   return dedupeContacts(raw).filter((event) => event.id !== BodyId.scoop)
 }

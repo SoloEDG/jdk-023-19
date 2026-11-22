@@ -2,6 +2,7 @@ import { flashNote, type PinballDocument } from '@/shared/document'
 import { clearChain } from '@/features/bonus'
 import { clearWarnings } from '@/features/flippers'
 import { commitSession } from '@/features/records'
+import { resetRescueForBall } from '@/features/rescue'
 import { mountFresh, stickPlunger } from '@/features/table'
 
 export function togglePause(doc: PinballDocument): void {
@@ -18,6 +19,7 @@ export function togglePause(doc: PinballDocument): void {
 
 export function applyDrain(doc: PinballDocument): void {
   doc.signals.drain = false
+  doc.signals.scoopReleased = false
   if (doc.phase === 'gameover') return
   if (doc.nudge.tilted) doc.live.tilted = true
   clearWarnings(doc)
@@ -36,6 +38,12 @@ export function applyDrain(doc: PinballDocument): void {
   }
   doc.phase = 'ready'
   doc.plunger.power = 0
+  // 记录本颗球的救援次数到整局统计（仅记录，不计分、不推进破万）
+  doc.live.totalSaves += doc.rescue.ballSaves
+  doc.live.totalKickbacks += doc.rescue.ballKickbacks.left + doc.rescue.ballKickbacks.right
+  // 换到下一颗球：球保清空、左右踢回重新给满
+  resetRescueForBall(doc.rescue)
+  doc.ball.launchedOnce = false
   stickPlunger(doc)
   flashNote(doc, '下一颗球')
 }
